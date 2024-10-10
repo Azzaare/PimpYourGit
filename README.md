@@ -2,4 +2,4 @@
 
 Why not?
 
-Small change to make a new commit and PR.
+Small change to make a new commit and PR. And another one.
