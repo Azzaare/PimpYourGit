@@ -30,8 +30,8 @@ jobs:
         run: |
           pr_body="${{ github.event.pull_request.body }}"
           pr_author="${{ env.pr_author }}"
-          pr_number=${{ github.event.pull_request.number }}"
-          pr_url=${{ github.event.pull_request.html_url }}"
+          pr_number="${{ github.event.pull_request.number }}"
+          pr_url="${{ github.event.pull_request.html_url }}"
           message="Hello @${pr_author}, your PR is being processed. Here are the results:\n\n"
           valid=true
 
