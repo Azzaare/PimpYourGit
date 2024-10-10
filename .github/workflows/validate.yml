@@ -2,7 +2,7 @@ name: PR Validation
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
 
 jobs:
   validate-pr:
@@ -31,7 +31,7 @@ jobs:
           pr_body="${{ github.event.pull_request.body }}"
           pr_author="${{ env.pr_author }}"
           pr_number=${{ github.event.pull_request.number }}
-          pr_url=${{ github.event.pull_request.html_url }}
+          pr_url=${{ github.event.pull_request.html_url }}"
           message="Hello @${pr_author}, your PR is being processed. Here are the results:\n\n"
           valid=true
 
@@ -45,7 +45,7 @@ jobs:
               "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
           else
             # Extract linked issues
-            issue_number=$(echo "$pr_body" | grep -oP '(?<=### Related issue\s*[^#]*#)\d+' | head -n 1)
+            issue_number=$(echo "$pr_body" | sed -n '/### Related issue/{n;p;}' | grep -oP '#\K\d+')
             if [ -z "$issue_number" ]; then
               valid=false
               reason="No linked issue found in the '### Related issue' section."
