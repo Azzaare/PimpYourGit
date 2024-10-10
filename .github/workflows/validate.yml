@@ -15,6 +15,16 @@ jobs:
         id: get-author
         run: echo "pr_author=${{ github.event.pull_request.user.login }}" >> $GITHUB_ENV
 
+      - name: Clear all PR labels
+        run: |
+          pr_number=${{ github.event.pull_request.number }}
+          labels=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels" | jq -r '.[].name')
+          for label in $labels; do
+            curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels/$label"
+          done
+
       - name: Get Linked Issues
         id: get-issues
         run: |
