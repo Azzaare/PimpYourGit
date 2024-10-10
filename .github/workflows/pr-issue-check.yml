@@ -20,11 +20,11 @@ jobs:
         run: |
           issues=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           "https://api.github.com/repos/${{ github.repository }}/issues?state=open&labels=${{ github.event.pull_request.number }}")
-          echo "issues=${issues}" >> $GITHUB_ENV
+          echo "issues=$(echo $issues | jq -c '.[]')" >> $GITHUB_ENV
 
       - name: Check PR Author Assignment
         run: |
-          issues=$(echo "${{ env.issues }}" | jq -r '.[] | @base64')
+          issues=$(echo "${{ env.issues }}" | jq -r '. | @base64')
           for issue in $issues; do
             _jq() {
               echo $issue | base64 --decode | jq -r ${1}
