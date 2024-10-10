@@ -1,54 +1,79 @@
-name: PR has a valid Issue?
+name: PR Author Issue Check
+
 on:
-  pull_request_target:
-    types: [edited, synchronize, opened, reopened]
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
-  checker:
+  check-pr-author-issue:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      - name: Issue Validator
-        uses: HarshCasper/validate-issues-over-pull-requests@v0.1.1
-        id: validator
-        with:
-          prbody: ${{ github.event.pull_request.body }}
-          prurl: ${{ github.event.pull_request.url }}
+      - name: Get PR Author
+        id: get-author
+        run: echo "pr_author=${{ github.event.pull_request.user.login }}" >> $GITHUB_ENV
 
-      - name: PR has a valid Issue
-        if: ${{ steps.validator.outputs.valid == 1 }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PRNUM: ${{ github.event.pull_request.number }}
+      - name: Get Linked Issues
+        id: get-issues
         run: |
-          gh pr edit $PRNUM --add-label "PR:Ready-to-Review"
-          gh pr edit $PRNUM --remove-label "PR:No-Issue"
+          issues=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/issues?state=open&labels=${{ github.event.pull_request.number }}")
+          echo "issues=$(echo $issues | jq -c '.[]')" >> $GITHUB_ENV
 
-      - name: PR has no valid Issue
-        if: ${{ steps.validator.outputs.valid == 0 }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PRNUM: ${{ github.event.pull_request.number }}
+      - name: Validate PR
         run: |
-          gh pr comment $PRNUM --body "PR is not linked to any issue, please make the corresponding changes in the body."
-          gh pr edit $PRNUM --add-label "PR:No-Issue"
-  enforce-template:
-    runs-on: ubuntu-latest
+          pr_author=${{ env.pr_author }}
+          pr_number=${{ github.event.pull_request.number }}
+          pr_url=${{ github.event.pull_request.html_url }}
+          message="Hello @${pr_author}, your PR is being processed. Here are the results:\n\n"
 
-    steps:
-      - name: Validate PR Body
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const prBody = context.payload.pull_request.body || '';
-            if (!prBody.includes('### Description') || !prBody.includes('### Related Issues')) {
-              await github.pulls.createReview({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                event: 'REQUEST_CHANGES',
-                body: 'Please ensure the PR follows the template and includes all necessary sections, such as "Description" and "Related Issues".'
-              });
+          # Check if PR body is empty
+          if [ -z "${{ github.event.pull_request.body }}" ]; then
+            echo "PR body is empty. Adding label and closing PR."
+            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -d '{"labels":["PR:fix-template"], "body":"Please provide a description for the PR body according to the template."}' \
+              "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+            curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -d '{"state":"closed"}' \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+            exit 1
+          fi
+
+          # Check if PR author is assigned to linked issues
+          issues=$(echo "${{ env.issues }}" | jq -r '. | @base64')
+          for issue in $issues; do
+            _jq() {
+              echo $issue | base64 --decode | jq -r ${1}
             }
+            assignees=$(_jq '.assignees | map(.login)')
+            if [[ ! " ${assignees[@]} " =~ " ${{ env.pr_author }} " ]]; then
+              echo "PR author is not assigned to issue $(_jq '.number'). Adding label and closing PR."
+              curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -d '{"labels":["PR:no-linked-issue"], "state":"closed"}' \
+                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+              exit 1
+            fi
+          done
+
+          # Add results from job runs
+          job_runs=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs?event=pull_request&per_page=100")
+          for run in $(echo "$job_runs" | jq -r '.workflow_runs[] | select(.pull_requests[].number == $pr_number) | @base64'); do
+            _jq() {
+              echo $run | base64 --decode | jq -r ${1}
+            }
+            conclusion=$(_jq '.conclusion')
+            message+="- Job $(_jq '.name'): $conclusion\n"
+          done
+
+          # Add "ready to review" label if all checks pass
+          curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d '{"labels":["PR:ready-to-review"]}' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
+
+          # Send message to PR
+          curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d "{\"body\":\"$message\"}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/comments"
