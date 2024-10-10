@@ -31,23 +31,31 @@ jobs:
 
           # Check if PR body is empty
           if [ -z "${{ github.event.pull_request.body }}" ]; then
-            echo "PR body is empty. Adding label and closing PR."
+            reason="PR body is empty."
+            echo "$reason Adding label and closing PR."
             curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -d '{"labels":["PR:fix-template"], "body":"Please provide a description for the PR body according to the template."}' \
               "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
             curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -d '{"state":"closed"}' \
               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -d "{\"body\":\"Closing reason: $reason\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/comments"
             exit 1
           fi
 
           # Check if PR author is assigned to linked issues
           issues=$(echo "${{ env.issues }}" | jq -r '. | @base64')
           if [ -z "$issues" ]; then
-            echo "No linked issues found. Adding label and closing PR."
+            reason="No linked issues found."
+            echo "$reason Adding label and closing PR."
             curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -d '{"labels":["PR:no-linked-issue"], "state":"closed"}' \
               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -d "{\"body\":\"Closing reason: $reason\"}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/comments"
             exit 1
           fi
 
@@ -57,10 +65,14 @@ jobs:
             }
             assignees=$(_jq '.assignees | map(.login)')
             if [[ ! " ${assignees[@]} " =~ " ${{ env.pr_author }} " ]]; then
-              echo "PR author is not assigned to issue $(_jq '.number'). Adding label and closing PR."
+              reason="PR author is not assigned to issue $(_jq '.number')."
+              echo "$reason Adding label and closing PR."
               curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                 -d '{"labels":["PR:no-linked-issue"], "state":"closed"}' \
                 "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -d "{\"body\":\"Closing reason: $reason\"}" \
+                "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/comments"
               exit 1
             fi
           done
