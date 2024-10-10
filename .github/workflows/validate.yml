@@ -40,7 +40,7 @@ jobs:
             valid=false
             reason="PR template is not respected. Make sure to include '### Description' and '### Related issue' sections."
             message+="\n- $reason"
-            curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -d '{"labels":["PR:fix-template"]}' \
               "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
           else
@@ -50,7 +50,7 @@ jobs:
               valid=false
               reason="No linked issue found in the '### Related issue' section."
               message+="\n- $reason"
-              curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                 -d '{"labels":["PR:no-linked-issue"]}' \
                 "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
             else
@@ -61,7 +61,7 @@ jobs:
                 valid=false
                 reason="PR author is not assigned to the linked issue #$issue_number."
                 message+="\n- $reason"
-                curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                   -d '{"labels":["PR:author-not-assigned"]}' \
                   "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
               fi
@@ -71,7 +71,7 @@ jobs:
           # Finalize validation
           if [ "$valid" = true ]; then
             message+="\n\nYour PR is valid and ready for review."
-            curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -d '{"labels":["PR:ready-for-review"]}' \
               "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
           else
