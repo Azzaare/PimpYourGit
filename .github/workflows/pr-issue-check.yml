@@ -1,0 +1,74 @@
+name: Check PR Author and Issue Assignment
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  pr-author-issue-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16"
+
+      - name: Install dependencies
+        run: npm install axios
+
+      - name: Validate PR author and assigned issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node -e "
+          const axios = require('axios');
+          const prAuthor = process.env.GITHUB_ACTOR;
+          const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+          const prNumber = process.env.GITHUB_EVENT_PULL_REQUEST_NUMBER;
+
+          const headers = {
+            headers: {
+              Authorization: `Bearer ${process.env.GITHUB_TOKEN}`
+            }
+          };
+
+          async function checkIssueAssignment() {
+            try {
+              const prResponse = await axios.get(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, headers);
+              const linkedIssues = prResponse.data.body.match(/#(\d+)/g);
+
+              if (!linkedIssues) {
+                console.error('No linked issues found in the PR description.');
+                process.exit(1);
+              }
+
+              const issueNumbers = linkedIssues.map(issue => issue.substring(1));
+
+              let allAssigned = true;
+              for (const issueNumber of issueNumbers) {
+                const issueResponse = await axios.get(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`, headers);
+                const assignees = issueResponse.data.assignees.map(user => user.login);
+
+                if (!assignees.includes(prAuthor)) {
+                  console.error(`PR author ${prAuthor} is not assigned to issue #${issueNumber}`);
+                  allAssigned = false;
+                }
+              }
+
+              if (!allAssigned) {
+                process.exit(1);
+              }
+
+              console.log('PR author is assigned to all linked issues.');
+            } catch (error) {
+              console.error('Error:', error.message);
+              process.exit(1);
+            }
+          }
+
+          checkIssueAssignment();
+          "
