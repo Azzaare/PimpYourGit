@@ -1,74 +1,38 @@
-name: Check PR Author and Issue Assignment
+name: PR Author Issue Check
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, synchronize, reopened]
 
 jobs:
-  pr-author-issue-check:
+  check-pr-author-issue:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
+      - name: Get PR Author
+        id: get-author
+        run: echo "pr_author=${{ github.event.pull_request.user.login }}" >> $GITHUB_ENV
 
-      - name: Install dependencies
-        run: npm install axios
+      - name: Get Linked Issues
+        id: get-issues
+        run: |
+          issues=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/issues?state=open&labels=${{ github.event.pull_request.number }}")
+          echo "issues=$issues" >> $GITHUB_ENV
 
-      - name: Validate PR author and assigned issue
+      - name: Check PR Author Assignment
+        run: |
+          for issue in $(echo "${{ env.issues }}" | jq -r '.[] | @base64'); do
+            _jq() {
+              echo ${issue} | base64 --decode | jq -r ${1}
+            }
+            assignees=$(_jq '.assignees | map(.login)')
+            if [[ ! " ${assignees[@]} " =~ " ${{ env.pr_author }} " ]]; then
+              echo "PR author is not assigned to issue $(_jq '.number')"
+              exit 1
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          node -e "
-          const axios = require('axios');
-          const prAuthor = process.env.GITHUB_ACTOR;
-          const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
-          const prNumber = process.env.GITHUB_EVENT_PULL_REQUEST_NUMBER;
-
-          const headers = {
-            headers: {
-              Authorization: `Bearer ${process.env.GITHUB_TOKEN}`
-            }
-          };
-
-          async function checkIssueAssignment() {
-            try {
-              const prResponse = await axios.get(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, headers);
-              const linkedIssues = prResponse.data.body.match(/#(\d+)/g);
-
-              if (!linkedIssues) {
-                console.error('No linked issues found in the PR description.');
-                process.exit(1);
-              }
-
-              const issueNumbers = linkedIssues.map(issue => issue.substring(1));
-
-              let allAssigned = true;
-              for (const issueNumber of issueNumbers) {
-                const issueResponse = await axios.get(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`, headers);
-                const assignees = issueResponse.data.assignees.map(user => user.login);
-
-                if (!assignees.includes(prAuthor)) {
-                  console.error(`PR author ${prAuthor} is not assigned to issue #${issueNumber}`);
-                  allAssigned = false;
-                }
-              }
-
-              if (!allAssigned) {
-                process.exit(1);
-              }
-
-              console.log('PR author is assigned to all linked issues.');
-            } catch (error) {
-              console.error('Error:', error.message);
-              process.exit(1);
-            }
-          }
-
-          checkIssueAssignment();
-          "
