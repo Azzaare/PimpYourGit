@@ -20,7 +20,7 @@ jobs:
       - name: PR has a valid Issue
         if: ${{ steps.validator.outputs.valid == 1 }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PIMP_TOKEN }}
           PRNUM: ${{ github.event.pull_request.number }}
         run: |
           gh pr edit $PRNUM --add-label "PR:Ready-to-Review"
@@ -29,7 +29,7 @@ jobs:
       - name: PR has no valid Issue
         if: ${{ steps.validator.outputs.valid == 0 }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PIMP_TOKEN }}
           PRNUM: ${{ github.event.pull_request.number }}
         run: |
           gh pr comment $PRNUM --body "PR is not linked to any issue, please make the corresponding changes in the body."
