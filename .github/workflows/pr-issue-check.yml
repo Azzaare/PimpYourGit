@@ -20,13 +20,14 @@ jobs:
         run: |
           issues=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           "https://api.github.com/repos/${{ github.repository }}/issues?state=open&labels=${{ github.event.pull_request.number }}")
-          echo "issues=$issues" | jq -r '.[]' >> $GITHUB_ENV
+          echo "issues=${issues}" >> $GITHUB_ENV
 
       - name: Check PR Author Assignment
         run: |
-          for issue in $(echo "${{ env.issues }}" | jq -r '.[] | @base64'); do
+          issues=$(echo "${{ env.issues }}" | jq -r '.[] | @base64')
+          for issue in $issues; do
             _jq() {
-              echo ${issue} | base64 --decode | jq -r ${1}
+              echo $issue | base64 --decode | jq -r ${1}
             }
             assignees=$(_jq '.assignees | map(.login)')
             if [[ ! " ${assignees[@]} " =~ " ${{ env.pr_author }} " ]]; then
