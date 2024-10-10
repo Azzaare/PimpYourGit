@@ -1,0 +1,24 @@
+name: Enforce PR Template
+on:
+  pull_request:
+    types: [opened, edited]
+
+jobs:
+  enforce-template:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR Body
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prBody = context.payload.pull_request.body || '';
+            if (!prBody.includes('### Description') || !prBody.includes('### Related Issues')) {
+              await github.pulls.createReview({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                event: 'REQUEST_CHANGES',
+                body: 'Please ensure the PR follows the template and includes all necessary sections, such as "Description" and "Related Issues".'
+              });
+            }
