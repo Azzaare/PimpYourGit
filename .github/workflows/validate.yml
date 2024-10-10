@@ -49,9 +49,9 @@ jobs:
             }
             assignees=$(_jq '.assignees | map(.login)')
             if [[ ! " ${assignees[@]} " =~ " ${{ env.pr_author }} " ]]; then
-              echo "PR author is not assigned to issue $(_jq '.number'). Closing PR."
+              echo "PR author is not assigned to issue $(_jq '.number'). Adding label and closing PR."
               curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -d '{"state":"closed"}' \
+                -d '{"labels":["PR:no-linked-issue"], "state":"closed"}' \
                 "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
               exit 1
             fi
@@ -67,6 +67,11 @@ jobs:
             conclusion=$(_jq '.conclusion')
             message+="- Job $(_jq '.name'): $conclusion\n"
           done
+
+          # Add "ready to review" label if all checks pass
+          curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d '{"labels":["PR:ready-to-review"]}' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
 
           # Send message to PR
           curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
