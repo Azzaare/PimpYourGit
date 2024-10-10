@@ -43,6 +43,14 @@ jobs:
 
           # Check if PR author is assigned to linked issues
           issues=$(echo "${{ env.issues }}" | jq -r '. | @base64')
+          if [ -z "$issues" ]; then
+            echo "No linked issues found. Adding label and closing PR."
+            curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -d '{"labels":["PR:no-linked-issue"], "state":"closed"}' \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+            exit 1
+          fi
+
           for issue in $issues; do
             _jq() {
               echo $issue | base64 --decode | jq -r ${1}
