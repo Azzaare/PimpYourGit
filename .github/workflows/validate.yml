@@ -30,7 +30,7 @@ jobs:
         run: |
           pr_body="${{ github.event.pull_request.body }}"
           pr_author="${{ env.pr_author }}"
-          pr_number=${{ github.event.pull_request.number }}
+          pr_number=${{ github.event.pull_request.number }}"
           pr_url=${{ github.event.pull_request.html_url }}"
           message="Hello @${pr_author}, your PR is being processed. Here are the results:\n\n"
           valid=true
@@ -56,7 +56,7 @@ jobs:
             else
               # Check if PR author is assigned to the linked issue
               issue_assignees=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number" | jq -r '.assignees[].login')
+                "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number" | jq -r '.assignees[]?.login')
               if ! echo "$issue_assignees" | grep -q "$pr_author"; then
                 valid=false
                 reason="PR author is not assigned to the linked issue #$issue_number."
