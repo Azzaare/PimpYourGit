@@ -19,7 +19,7 @@ jobs:
         run: |
           pr_number=${{ github.event.pull_request.number }}
           labels=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels" | jq -r '.[].name')
+            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels" | jq -r '.[].name // empty')
           for label in $labels; do
             curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels/$label"
@@ -56,7 +56,7 @@ jobs:
             else
               # Check if PR author is assigned to the linked issue
               issue_assignees=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number" | jq -r '.assignees[]?.login')
+                "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number" | jq -r '.assignees[]?.login // empty')
               if ! echo "$issue_assignees" | grep -q "$pr_author"; then
                 valid=false
                 reason="PR author is not assigned to the linked issue #$issue_number."
