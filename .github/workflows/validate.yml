@@ -37,7 +37,7 @@ jobs:
             echo "$response"
           }
 
-          echo "Bypassing maintainer check for now"
+          echo "Bypassing all checks for maintainer"
 
           # Check PR template
           if [[ "$pr_body" != *"### Description"* ]] || [[ "$pr_body" != *"### Related issue"* ]]; then
