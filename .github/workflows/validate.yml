@@ -45,7 +45,8 @@ jobs:
               "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
           else
             # Extract linked issues from the '### Related issue' section and the entire PR body
-            issue_numbers=$(echo "$pr_body" | grep -oP '(?<=### Related issue\s+)[^#]*#\K\d+' || echo "$pr_body" | grep -oP '#\K\d+')
+            # issue_numbers=$(echo "$pr_body" | grep -oP '(?<=### Related issue\s+)[^#]*#\K\d+' || echo "$pr_body" | grep -oP '#\K\d+')
+            issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
             if [ -z "$issue_numbers" ]; then
               valid=false
               reason="No linked issue found in the '### Related issue' section or elsewhere in the PR body."
