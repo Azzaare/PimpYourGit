@@ -62,8 +62,8 @@ jobs:
             issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
             
             if [ -z "$issue_numbers" ]; then
-  echo "No linked issues detected. Setting default empty value for issue_numbers to avoid error."
-  issue_numbers="empty"
+              echo "No linked issues detected. Setting default empty value for issue_numbers to avoid error."
+              issue_numbers="empty"
               exit_code=3
               echo "No linked issue found. Exit code: $exit_code"
               reason="No linked issue found. Please link an issue in your PR description (e.g., 'Fixes #123')."
@@ -73,20 +73,20 @@ jobs:
               echo "Linked issues found: $issue_numbers"
               # Check if PR author is assigned to the linked issue(s)
               if [[ "$issue_numbers" != "empty" ]]; then
-  for issue_number in $issue_numbers; do
-                issue_data=$(github_api_call GET "issues/${issue_number}")
-                issue_assignees=$(echo "$issue_data" | jq -r '.assignees[].login')
-                if ! echo "$issue_assignees" | grep -q "$pr_author"; then
-                  exit_code=4
-                  echo "Author not assigned to issue #${issue_number}. Exit code: $exit_code"
-                  reason="PR author is not assigned to the linked issue #$issue_number. Please assign yourself to the issue before submitting a PR."
-                  message+="\n- $reason"
-                  github_api_call POST "issues/${pr_number}/labels" '{"labels":["PR:author-not-assigned"]}'
-                else
-                  echo "Author is assigned to issue #${issue_number}"
-                fi
-              done
-fi
+                for issue_number in $issue_numbers; do
+                  issue_data=$(github_api_call GET "issues/${issue_number}")
+                  issue_assignees=$(echo "$issue_data" | jq -r '.assignees[].login')
+                  if ! echo "$issue_assignees" | grep -q "$pr_author"; then
+                    exit_code=4
+                    echo "Author not assigned to issue #${issue_number}. Exit code: $exit_code"
+                    reason="PR author is not assigned to the linked issue #$issue_number. Please assign yourself to the issue before submitting a PR."
+                    message+="\n- $reason"
+                    github_api_call POST "issues/${pr_number}/labels" '{"labels":["PR:author-not-assigned"]}'
+                  else
+                    echo "Author is assigned to issue #${issue_number}"
+                  fi
+                done
+              fi
             fi
           fi
 
