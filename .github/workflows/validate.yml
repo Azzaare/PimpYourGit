@@ -60,6 +60,7 @@ jobs:
             echo "PR template respected, checking linked issues"
             # Extract linked issues
             issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
+            echo "debug linked issues"
             
             if [ -z "$issue_numbers" ]; then
               echo "No linked issues detected. Setting default empty value for issue_numbers to avoid error."
