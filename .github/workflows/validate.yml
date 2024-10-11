@@ -1,3 +1,6 @@
+Here is the script with echo lines added after each logical branch:
+
+```yaml
 name: PR Validation
 
 on:
@@ -47,7 +50,9 @@ jobs:
             message+="\n- $reason\n\nHere's a minimal example of a valid PR body:\n\n"
             message+='```markdown\n### Description\n\n[Provide a brief description of your changes]\n\n### Related issue\n\nFixes #123\n```\n'
             github_api_call POST "issues/${pr_number}/labels" '{"labels":["PR:fix-template"]}'
+            echo "PR template check completed"
           else
+            echo "PR template respected"
             # Extract linked issues
             issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
             
@@ -57,6 +62,7 @@ jobs:
               reason="No linked issue found. Please link an issue in your PR description (e.g., 'Fixes #123')."
               message+="\n- $reason"
               github_api_call POST "issues/${pr_number}/labels" '{"labels":["PR:no-linked-issue"]}'
+              echo "Linked issue check completed - no issue found"
             else
               echo "Linked issues found: $issue_numbers"
               # Check if PR author is assigned to the linked issue(s)
@@ -69,8 +75,12 @@ jobs:
                   reason="PR author is not assigned to the linked issue #$issue_number. Please assign yourself to the issue before submitting a PR."
                   message+="\n- $reason"
                   github_api_call POST "issues/${pr_number}/labels" '{"labels":["PR:author-not-assigned"]}'
+                  echo "Issue assignment check completed - author not assigned"
+                else
+                  echo "Author assigned to issue #${issue_number}"
                 fi
               done
+              echo "Issue assignment checks completed"
             fi
           fi
 
@@ -79,10 +89,12 @@ jobs:
             echo "PR is valid"
             message+="\n\nYour PR is valid and ready for review. Thank you for your contribution!"
             github_api_call POST "issues/${pr_number}/labels" '{"labels":["PR:ready-for-review"]}'
+            echo "Validation finalized - PR valid"
           else
             echo "PR is invalid. Closing PR."
             message+="\n\nPlease address the above issues and update your PR. Once you've made the necessary changes, the PR will be automatically re-evaluated."
             github_api_call PATCH "pulls/${pr_number}" '{"state":"closed"}'
+            echo "Validation finalized - PR invalid"
           fi
 
           # Add comment to PR
@@ -91,3 +103,4 @@ jobs:
 
           echo "PR validation completed. Exit code: $exit_code"
           exit $exit_code
+```
