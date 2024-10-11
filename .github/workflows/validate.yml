@@ -42,8 +42,7 @@ jobs:
           is_maintainer=$(echo $permissions | jq -r '.permission')
           echo "Author permissions: $is_maintainer"
 
-          # if [[ "$is_maintainer" == "admin" || "$is_maintainer" == "maintain" ]]; then
-          if [[ "false" ]]; then
+          if [[ "$is_maintainer" == "admin" || "$is_maintainer" == "maintain" ]]; then
             echo "Author is a maintainer, bypassing checks"
             message+="As a maintainer, your PR is automatically approved and will bypass further checks.\n"
             github_api_call POST "issues/${pr_number}/labels" '{"labels":["PR:maintainer-bypass"]}'
