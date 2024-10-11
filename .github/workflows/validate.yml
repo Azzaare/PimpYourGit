@@ -45,26 +45,27 @@ jobs:
               "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
           else
             # Extract linked issues from the '### Related issue' section and the entire PR body
-            issue_numbers=$(echo "$pr_body" | grep -oP '(?<=### Related issue\s+)[^#]*#\K\d+' || echo "$pr_body" | grep -oP '#\K\d+')
+            issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
+            
             if [ -z "$issue_numbers" ]; then
               valid=false
               reason="No linked issue found in the '### Related issue' section or elsewhere in the PR body."
               message+="\n- $reason"
-              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              curl -s -X POST -H "Authorization: token ***" \
                 -d '{"labels":["PR:no-linked-issue"]}' \
-                "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
+                "https://api.github.com/repos/Azzaare/PimpYourGit/issues/$pr_number/labels"
             else
               # Check if PR author is assigned to the linked issue(s)
               for issue_number in $issue_numbers; do
-                issue_assignees=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                  "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number" | jq -r '.assignees[]?.login // empty')
+                issue_assignees=$(curl -s -H "Authorization: token ***" \
+                  "https://api.github.com/repos/Azzaare/PimpYourGit/issues/$issue_number" | jq -r '.assignees[]?.login // empty')
                 if ! echo "$issue_assignees" | grep -q "$pr_author"; then
                   valid=false
                   reason="PR author is not assigned to the linked issue #$issue_number."
                   message+="\n- $reason"
-                  curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                  curl -s -X POST -H "Authorization: token ***" \
                     -d '{"labels":["PR:author-not-assigned"]}' \
-                    "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
+                    "https://api.github.com/repos/Azzaare/PimpYourGit/issues/$pr_number/labels"
                 fi
               done
             fi
