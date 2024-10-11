@@ -11,17 +11,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - name: Clear all PR labels
+        run: |
+          pr_number=${{ github.event.pull_request.number }}
+          labels=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels" | jq -r '.[].name // empty')
+          for label in $labels; do
+            curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels/$label"
+          done
+
       - name: Validate PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Delete all existing labels starting with 'PR:'
-          existing_labels=$(github_api_call GET "issues/${pr_number}/labels" | jq -r '.[] | select(.name | startswith("PR:")) | .name')
-          for label in $existing_labels; do
-            github_api_call DELETE "issues/${pr_number}/labels/$label"
-            echo "Deleted label: $label"
-          done
-        
           pr_body="${{ github.event.pull_request.body }}"
           pr_author="${{ github.event.pull_request.user.login }}"
           pr_number="${{ github.event.pull_request.number }}"
