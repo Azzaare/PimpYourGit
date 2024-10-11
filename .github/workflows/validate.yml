@@ -41,7 +41,7 @@ jobs:
             local endpoint=$2
             local data=$3
             local url="https://api.github.com/repos/${repo_full_name}/${endpoint}"
-            
+
             response=$(curl -s -X ${method} -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" ${data:+-d "$data"} "$url")
             echo "API call to ${endpoint}: $response" >&2
             echo "$response"
@@ -71,9 +71,9 @@ jobs:
               # Extract linked issues
               # issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
               issue_numbers=$(echo "$pr_body" | grep -o '#[0-9]\+' | cut -d'#' -f2)
-  
+
               echo "debug linked issues"
-              
+
               if [ -z "$issue_numbers" ]; then
                 echo "No linked issues detected. Setting default empty value for issue_numbers to avoid error."
                 issue_numbers="empty"
