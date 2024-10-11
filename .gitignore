@@ -1,0 +1,4 @@
+*.py
+!spec/*.py
+*.python
+!spec/*.python
