@@ -15,6 +15,18 @@ jobs:
         id: get-author
         run: echo "pr_author=${{ github.event.pull_request.user.login }}" >> $GITHUB_ENV
 
+      - name: Check if PR author is a maintainer
+        id: check-maintainer
+        run: |
+          is_maintainer=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/collaborators/${{ env.pr_author }}/permission" | \
+            jq -r '.permission')
+          if [[ "$is_maintainer" == "admin" || "$is_maintainer" == "maintain" ]]; then
+            echo "is_maintainer=true" >> $GITHUB_ENV
+          else
+            echo "is_maintainer=false" >> $GITHUB_ENV
+          fi
+
       - name: Clear all PR labels
         run: |
           pr_number=${{ github.event.pull_request.number }}
@@ -32,59 +44,82 @@ jobs:
           pr_author="${{ env.pr_author }}"
           pr_number="${{ github.event.pull_request.number }}"
           pr_url="${{ github.event.pull_request.html_url }}"
+          is_maintainer="${{ env.is_maintainer }}"
           message="Hello @${pr_author}, your PR is being processed. Here are the results:\n\n"
           valid=true
 
-          # Check PR template
-          if [[ "$pr_body" != *"### Description"* ]] || [[ "$pr_body" != *"### Related issue"* ]]; then
-            valid=false
-            reason="PR template is not respected. Make sure to include '### Description' and '### Related issue' sections."
-            message+="\n- $reason"
-            curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -d '{"labels":["PR:fix-template"]}' \
-              "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
-          else
-            # Extract linked issues from the '### Related issue' section and the entire PR body
-            issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
-            
-            if [ -z "$issue_numbers" ]; then
-              valid=false
-              reason="No linked issue found in the '### Related issue' section or elsewhere in the PR body."
-              message+="\n- $reason"
-              curl -s -X POST -H "Authorization: token ***" \
-                -d '{"labels":["PR:no-linked-issue"]}' \
-                "https://api.github.com/repos/Azzaare/PimpYourGit/issues/$pr_number/labels"
-            else
-              # Check if PR author is assigned to the linked issue(s)
-              for issue_number in $issue_numbers; do
-                issue_assignees=$(curl -s -H "Authorization: token ***" \
-                  "https://api.github.com/repos/Azzaare/PimpYourGit/issues/$issue_number" | jq -r '.assignees[]?.login // empty')
-                if ! echo "$issue_assignees" | grep -q "$pr_author"; then
-                  valid=false
-                  reason="PR author is not assigned to the linked issue #$issue_number."
-                  message+="\n- $reason"
-                  curl -s -X POST -H "Authorization: token ***" \
-                    -d '{"labels":["PR:author-not-assigned"]}' \
-                    "https://api.github.com/repos/Azzaare/PimpYourGit/issues/$pr_number/labels"
-                fi
-              done
-            fi
-          fi
+          # Delete previous bot comments
+          previous_comments=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/comments" | \
+            jq -r '.[] | select(.user.login == "github-actions[bot]") | .id')
+          for comment_id in $previous_comments; do
+            curl -s -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/comments/$comment_id"
+          done
 
-          # Finalize validation
-          if [ "$valid" = true ]; then
-            message+="\n\nYour PR is valid and ready for review."
+          if [ "$is_maintainer" = "true" ]; then
+            message+="As a maintainer, your PR is automatically approved and will bypass further checks.\n"
             curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -d '{"labels":["PR:ready-for-review"]}' \
+              -d '{"labels":["PR:maintainer-bypass"]}' \
               "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
           else
-            message+="\n\nPlease address the above issues and reopen the PR."
-            curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -d '{"state":"closed"}' \
-              "https://api.github.com/repos/${{ github.repository }}/pulls/$pr_number"
+            # Check PR template
+            if [[ "$pr_body" != *"### Description"* ]] || [[ "$pr_body" != *"### Related issue"* ]]; then
+              valid=false
+              reason="PR template is not respected. Please update your PR description to include the required sections."
+              message+="\n- $reason\n\nHere's a minimal example of a valid PR body:\n\n"
+              message+='```markdown\n### Description\n\n[Provide a brief description of your changes]\n\n### Related issue\n\nFixes #123\n```\n'
+              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -d '{"labels":["PR:fix-template"]}' \
+                "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
+            else
+              # Extract linked issues from the '### Related issue' section and the entire PR body
+              issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
+              
+              if [ -z "$issue_numbers" ]; then
+                valid=false
+                reason="No linked issue found. Please link an issue in your PR description (e.g., 'Fixes #123')."
+                message+="\n- $reason"
+                curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                  -d '{"labels":["PR:no-linked-issue"]}' \
+                  "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
+              else
+                # Check if PR author is assigned to the linked issue(s)
+                for issue_number in $issue_numbers; do
+                  issue_assignees=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                    "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number" | jq -r '.assignees[]?.login // empty')
+                  if ! echo "$issue_assignees" | grep -q "$pr_author"; then
+                    valid=false
+                    reason="PR author is not assigned to the linked issue #$issue_number. Please assign yourself to the issue before submitting a PR."
+                    message+="\n- $reason"
+                    curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                      -d '{"labels":["PR:author-not-assigned"]}' \
+                      "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
+                  fi
+                done
+              fi
+            fi
+
+            # Finalize validation
+            if [ "$valid" = true ]; then
+              message+="\n\nYour PR is valid and ready for review. Thank you for your contribution!"
+              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -d '{"labels":["PR:ready-for-review"]}' \
+                "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/labels"
+            else
+              message+="\n\nPlease address the above issues and update your PR. Once you've made the necessary changes, the PR will be automatically re-evaluated."
+              curl -s -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -d '{"state":"closed"}' \
+                "https://api.github.com/repos/${{ github.repository }}/pulls/$pr_number"
+            fi
           fi
 
           # Add comment to PR
           curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -d "{\"body\":\"$message\"}" \
             "https://api.github.com/repos/${{ github.repository }}/issues/$pr_number/comments"
+
+          # Exit with error if PR is invalid and author is not a maintainer
+          if [ "$valid" = false ] && [ "$is_maintainer" = "false" ]; then
+            exit 1
+          fi
