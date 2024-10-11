@@ -59,7 +59,9 @@ jobs:
           else
             echo "PR template respected, checking linked issues"
             # Extract linked issues
-            issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
+            # issue_numbers=$(echo "$pr_body" | grep -oP '#\K\d+')
+            issue_numbers=$(echo "$pr_body" | grep -o '#[0-9]\+' | cut -d'#' -f2)
+
             echo "debug linked issues"
             
             if [ -z "$issue_numbers" ]; then
